@@ -1,0 +1,302 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TactiCore | Football Quiz</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#08111f;color:#f4f7fb;font-family:Arial,sans-serif}
+header{text-align:center;padding:25px 15px;background:#101e31}
+header h1{color:#54e5a0;margin:0 0 8px}
+main{max-width:800px;margin:25px auto;padding:16px}
+.panel{background:#142238;border:1px solid #2c4058;border-radius:16px;padding:22px;margin-bottom:18px}
+label{display:block;margin:14px 0 7px}
+select,button{padding:12px;border-radius:9px;border:0;font-size:16px}
+select{width:100%;background:#f4f7fb;color:#111}
+button{cursor:pointer;font-weight:bold}
+.primary{background:#54e5a0;color:#071a12;width:100%;margin-top:18px}
+.option{display:block;width:100%;margin:10px 0;background:#24364e;color:white;text-align:left}
+.option:disabled{cursor:default;opacity:.9}
+.correct{background:#146c43!important}
+.wrong{background:#963f4c!important}
+.small{color:#b9c7d8;font-size:14px}
+#status{line-height:1.5}
+#question{font-size:21px;line-height:1.5}
+a{color:#54e5a0}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>TactiCore</h1>
+  <p>Understand the Game. Master the Tactics.</p>
+</header>
+
+<main>
+  <section class="panel" id="setup">
+    <h2>Football Knowledge Quiz</h2>
+    <p class="small">Players • Clubs • History • Rules • Tactics</p>
+
+    <label for="amount">Number of questions</label>
+    <select id="amount">
+      <option value="10">10 questions</option>
+      <option value="20">20 questions</option>
+      <option value="30">30 questions</option>
+    </select>
+
+    <button class="primary" id="start">Start Quiz</button>
+    <p class="small">Online facts are retrieved from Wikidata. Rules, history
+    and tactics questions are included from the built-in question bank.</p>
+  </section>
+
+  <section class="panel hidden" id="quiz">
+    <p id="progress" class="small"></p>
+    <h2 id="category"></h2>
+    <p id="question"></p>
+    <div id="options"></div>
+    <p id="feedback" aria-live="polite"></p>
+    <button class="primary hidden" id="next">Next Question</button>
+  </section>
+
+  <section class="panel hidden" id="result">
+    <h2>Quiz Complete!</h2>
+    <h3 id="score"></h3>
+    <p id="summary"></p>
+    <button class="primary" id="again">Play Again</button>
+  </section>
+
+  <section class="panel">
+    <p id="status" class="small">Ready to test your football knowledge?</p>
+    <p class="small">Online data: <a href="https://www.wikidata.org/"
+    target="_blank" rel="noopener">Wikidata</a>.</p>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const bank = [
+ {category:"Rules",q:"How many players may one team normally have on the pitch at kick-off in a standard 11-a-side match?",a:["9","10","11","12"],correct:2},
+ {category:"Rules",q:"What does a red card mean for a player?",a:["A warning only","The player is sent off","A penalty is awarded automatically","The match ends"],correct:1},
+ {category:"Rules",q:"Which restart is awarded when the whole ball crosses the touchline?",a:["Throw-in","Goal kick","Corner kick","Kick-off"],correct:0},
+ {category:"Rules",q:"Can a player be offside directly from a throw-in?",a:["Yes, always","Only in the penalty area","No","Only after half-time"],correct:2},
+ {category:"History",q:"Which country hosted and won the first men's FIFA World Cup in 1930?",a:["Brazil","Italy","Uruguay","Argentina"],correct:2},
+ {category:"History",q:"Which country won the 2022 men's FIFA World Cup?",a:["France","Argentina","Croatia","Portugal"],correct:1},
+ {category:"History",q:"Which club is famously associated with the nickname 'The Red Devils'?",a:["Manchester United","Liverpool","Arsenal","Chelsea"],correct:0},
+ {category:"Tactics",q:"In football, what is a counterattack?",a:["A quick attack after regaining possession","A defensive wall at a free kick","A slow goal kick routine","A substitution"],correct:0},
+ {category:"Tactics",q:"What is the main purpose of pressing?",a:["To make the pitch larger","To put pressure on opponents in possession","To avoid passing","To keep every player in the penalty area"],correct:1},
+ {category:"Tactics",q:"In a 4-3-3 formation, what do the three numbers usually describe?",a:["Referees, coaches and substitutes","Defenders, midfielders and forwards","Only the forwards","Goalkeepers, defenders and referees"],correct:1},
+ {category:"Positions",q:"Which player is normally allowed to handle the ball inside their own penalty area, subject to the Laws of the Game?",a:["Centre-back","Striker","Goalkeeper","Any midfielder"],correct:2},
+ {category:"Terminology",q:"What is an assist in football?",a:["A pass or action credited with setting up a goal","A type of foul","A defensive formation","A way to restart play"],correct:0},
+ {category:"Terminology",q:"What does 'clean sheet' mean for a team?",a:["They did not concede a goal","They won by five goals","They had no corners","They made no substitutions"],correct:0},
+ {category:"Tactics",q:"What is the main role of a defensive midfielder?",a:["Stay permanently beside the striker","Help protect the defence and link play","Take every corner","Replace the goalkeeper"],correct:1},
+ {category:"History",q:"Which international tournament is organised by UEFA for European men's national teams?",a:["Copa América","AFC Asian Cup","UEFA European Championship","Africa Cup of Nations"],correct:2}
+];
+
+let questions = [];
+let index = 0;
+let points = 0;
+let locked = false;
+
+function shuffle(arr){
+  const a = [...arr];
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+// Queries public, structured football facts from Wikidata.
+// This is not a Google Search API and does not generate AI questions.
+async function getOnlineQuestions(){
+  const sparql = `
+SELECT DISTINCT ?kind ?entityLabel ?countryLabel WHERE {
+ {
+   ?entity wdt:P106 wd:Q937857;
+           wdt:P27 ?country.
+   BIND("Players" AS ?kind)
+ }
+ UNION
+ {
+   ?entity wdt:P31/wdt:P279* wd:Q476028;
+           wdt:P17 ?country.
+   BIND("Clubs" AS ?kind)
+ }
+ SERVICE wikibase:label {
+   bd:serviceParam wikibase:language "en".
+ }
+ FILTER(BOUND(?entityLabel) && BOUND(?countryLabel))
+}
+ORDER BY RAND()
+LIMIT 150`;
+
+  const url = "https://query.wikidata.org/sparql?query="
+    + encodeURIComponent(sparql)
+    + "&format=json";
+
+  const response = await fetch(url, {
+    headers: { "Accept": "application/sparql-results+json" }
+  });
+
+  if(!response.ok) throw new Error("Online source unavailable");
+
+  const json = await response.json();
+  const rows = json.results.bindings;
+
+  const records = rows.map(row => ({
+    kind: row.kind.value,
+    name: row.entityLabel.value,
+    country: row.countryLabel.value
+  })).filter(x => x.name && x.country);
+
+  const unique = [];
+  const seen = new Set();
+
+  for(const item of records){
+    const key = item.kind + "|" + item.name + "|" + item.country;
+    if(!seen.has(key)){
+      seen.add(key);
+      unique.push(item);
+    }
+  }
+  return unique;
+}
+
+function makeOnlineQuestions(records){
+  const countries = [...new Set(records.map(x=>x.country))];
+  const output = [];
+
+  for(const item of records){
+    const wrong = shuffle(countries.filter(c=>c!==item.country)).slice(0,3);
+    if(wrong.length < 3) continue;
+
+    const isPlayer = item.kind === "Players";
+    const choices = shuffle([item.country,...wrong]);
+
+    output.push({
+      category: isPlayer ? "Players — online facts" : "Clubs — online facts",
+      q: isPlayer
+        ? `Which country is listed as a citizenship of ${item.name} in Wikidata?`
+        : `Which country is listed for ${item.name} in Wikidata?`,
+      a: choices,
+      correct: choices.indexOf(item.country),
+      source: "Wikidata",
+      sourceUrl: "https://www.wikidata.org/"
+    });
+  }
+  return output;
+}
+
+async function startQuiz(){
+  $("start").disabled = true;
+  $("status").textContent = "Loading football questions from the internet…";
+
+  let online = [];
+  try{
+    const records = await getOnlineQuestions();
+    online = makeOnlineQuestions(records);
+  }catch(error){
+    console.warn(error);
+  }
+
+  const count = Number($("amount").value);
+  const combined = shuffle([...bank, ...online]);
+
+  if(combined.length < count){
+    $("status").textContent =
+      "The online source returned fewer questions than expected. Try again later or choose fewer questions.";
+    $("start").disabled = false;
+    return;
+  }
+
+  questions = combined.slice(0,count);
+  index = 0;
+  points = 0;
+  locked = false;
+
+  $("setup").classList.add("hidden");
+  $("result").classList.add("hidden");
+  $("quiz").classList.remove("hidden");
+  $("start").disabled = false;
+  $("status").textContent =
+    online.length
+      ? "Online player and club facts loaded successfully."
+      : "Using the built-in football question bank because the online source could not be reached.";
+
+  showQuestion();
+}
+
+function showQuestion(){
+  locked = false;
+  const q = questions[index];
+
+  $("progress").textContent =
+    `Question ${index+1} of ${questions.length} • Score: ${points}`;
+  $("category").textContent = q.category;
+  $("question").textContent = q.q;
+  $("feedback").textContent = "";
+  $("options").replaceChildren();
+  $("next").classList.add("hidden");
+
+  q.a.forEach((answer,i)=>{
+    const button = document.createElement("button");
+    button.className = "option";
+    button.textContent = `${String.fromCharCode(65+i)}. ${answer}`;
+    button.addEventListener("click",()=>chooseAnswer(i));
+    $("options").appendChild(button);
+  });
+}
+
+function chooseAnswer(selected){
+  if(locked) return;
+  locked = true;
+
+  const q = questions[index];
+  const buttons = [...$("options").children];
+
+  buttons.forEach((button,i)=>{
+    button.disabled = true;
+    if(i===q.correct) button.classList.add("correct");
+    else if(i===selected) button.classList.add("wrong");
+  });
+
+  if(selected===q.correct){
+    points++;
+    $("feedback").textContent = "Correct! Well played.";
+  }else{
+    $("feedback").textContent = `The correct answer is: ${q.a[q.correct]}.`;
+  }
+
+  $("progress").textContent =
+    `Question ${index+1} of ${questions.length} • Score: ${points}`;
+  $("next").textContent =
+    index===questions.length-1 ? "View Results" : "Next Question";
+  $("next").classList.remove("hidden");
+}
+
+function nextQuestion(){
+  index++;
+  if(index<questions.length){
+    showQuestion();
+  }else{
+    $("quiz").classList.add("hidden");
+    $("result").classList.remove("hidden");
+    $("score").textContent = `${points} / ${questions.length}`;
+    $("summary").textContent =
+      `You scored ${Math.round(points/questions.length*100)}%. Keep learning the game!`;
+  }
+}
+
+$("start").addEventListener("click",startQuiz);
+$("next").addEventListener("click",nextQuestion);
+$("again").addEventListener("click",()=>{
+  $("result").classList.add("hidden");
+  $("setup").classList.remove("hidden");
+  $("status").textContent = "Ready for another quiz?";
+});
+</script>
+</body>
+</html>
