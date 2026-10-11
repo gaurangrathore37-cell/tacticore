@@ -68,3 +68,96 @@ function renderDashboard(){document.getElementById("lessonsCount").textContent=s
 document.getElementById("exportData").addEventListener("click",()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="tacticore-my-data.json";a.click();URL.revokeObjectURL(url);showToast("Your data export has been prepared.")});
 document.getElementById("clearData").addEventListener("click",()=>{if(!confirm("Clear all TactiCore progress and saved formations from this browser? This cannot be undone unless you exported your data."))return;state={...defaultState,lessons:[],savedFormations:[]};persist();showToast("Local progress cleared.")});
 setFormation(state.lastFormation||"433");renderQuiz();renderDashboard();
+// TactiCore Supabase Email Authentication
+(function () {
+  const emailInput = document.getElementById("authEmail");
+  const passwordInput = document.getElementById("authPassword");
+  const authForm = document.getElementById("authForm");
+  const submitButton = document.getElementById("authSubmit");
+  const createButton = document.getElementById("loginOkay");
+  const signOutButton = document.getElementById("signOutButton");
+  const message = document.getElementById("authMessage");
+  const loginDialog = document.getElementById("loginDialog");
+
+  if (!authForm || !emailInput || !passwordInput) return;
+
+  let client;
+  let isSignUp = false;
+
+  function showMessage(text) {
+    message.textContent = text;
+  }
+
+  const sdk = document.createElement("script");
+  sdk.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
+
+  sdk.onload = function () {
+    client = window.supabase.createClient(
+      "https://vykhzurogtlfanhlhsqh.supabase.co",
+      "sb_publishable_oRl89Tsiv1GmWHk-381RZQ_3UE4hcwy"
+    );
+
+    client.auth.onAuthStateChange(function (_event, session) {
+      signOutButton.hidden = !session;
+    });
+
+    authForm.addEventListener("submit", async function (event) {
+      event.preventDefault();
+
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+
+      submitButton.disabled = true;
+      showMessage("Please wait...");
+
+      try {
+        let result;
+
+        if (isSignUp) {
+          result = await client.auth.signUp({ email, password });
+        } else {
+          result = await client.auth.signInWithPassword({
+            email,
+            password
+          });
+        }
+
+        if (result.error) throw result.error;
+
+        if (isSignUp && !result.data.session) {
+          showMessage("Account created! Check your email to confirm it.");
+        } else {
+          showMessage(isSignUp ? "Account created!" : "Login successful!");
+          if (result.data.session) {
+            setTimeout(function () {
+              loginDialog.close();
+            }, 1000);
+          }
+        }
+      } catch (error) {
+        showMessage(error.message || "Something went wrong.");
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
+
+    createButton.onclick = function () {
+      isSignUp = !isSignUp;
+      submitButton.textContent = isSignUp ? "Create account" : "Sign in";
+      createButton.textContent = isSignUp ? "Back to sign in" : "Create account";
+      passwordInput.autocomplete = isSignUp ? "new-password" : "current-password";
+      showMessage("");
+    };
+
+    signOutButton.onclick = async function () {
+      const { error } = await client.auth.signOut();
+      showMessage(error ? error.message : "Signed out successfully.");
+    };
+  };
+
+  sdk.onerror = function () {
+    showMessage("Could not load login service. Check your internet connection.");
+  };
+
+  document.head.appendChild(sdk);
+})();
