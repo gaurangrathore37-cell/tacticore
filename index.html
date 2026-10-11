@@ -100,7 +100,25 @@
   <footer class="site-footer"><a class="brand footer-brand" href="#home"><span class="brand-mark">TC</span><span>Tacti<span>Core</span><small>FOOTBALL INTELLIGENCE</small></span></a><p>Built for curious minds and passionate football fans.</p><div class="footer-links"><a href="#learn">Learn</a><a href="#formations">Formations</a><a href="#creator">Meet the Creator</a></div><small>© <span id="year"></span> TactiCore. Independent educational project; not affiliated with any football club or governing body.</small></footer>
 
   <dialog id="lessonDialog" class="lesson-dialog"><button class="dialog-close" id="closeLesson" aria-label="Close">×</button><div class="eyebrow">TACTICORE LEARNING HUB</div><h2 id="lessonTitle"></h2><div id="lessonBody" class="lesson-body"></div><button class="btn btn-primary" id="markLesson">Mark as explored ✓</button></dialog>
-  <dialog id="loginDialog" class="lesson-dialog"><button class="dialog-close" id="closeLogin" aria-label="Close">×</button><div class="eyebrow">YOUR PERSONAL SPACE</div><h2>Welcome to <em>TactiCore.</em></h2><p>Google login and cross-device cloud sync are not connected in this starter version. Your progress and formations are currently saved locally in this browser.</p><p class="small-note">To enable real Google sign-in and cloud saving, connect a backend such as Supabase and configure its Google OAuth provider. Never put private service-role keys in frontend code.</p><button class="btn btn-primary" id="loginOkay">Got it</button></dialog>
+  <dialog id="loginDialog" class="lesson-dialog">
+  <button class="dialog-close" id="closeLogin" aria-label="Close">×</button>
+  <div class="eyebrow">YOUR PERSONAL SPACE</div>
+  <h2>Welcome to <em>TactiCore.</em></h2>
+
+  <form id="authForm">
+    <label for="authEmail">Email</label>
+    <input id="authEmail" type="email" required placeholder="Your email">
+
+    <label for="authPassword">Password</label>
+    <input id="authPassword" type="password" minlength="6" required placeholder="Password">
+
+    <button class="btn btn-primary full" id="authSubmit" type="submit">Sign in</button>
+  </form>
+
+  <button class="btn btn-ghost full" id="loginOkay" type="button">Create account</button>
+  <button class="btn btn-ghost full" id="signOutButton" type="button" hidden>Sign out</button>
+  <p id="authMessage" class="small-note" aria-live="polite"></p>
+  </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="script.js"></script>
 </body>
